@@ -29,4 +29,4 @@ Explore the folders to find:
 - **Commentary**: Formal reflections and clarifications  
 - **Protocols**: Stepwise guides for implementation
 
-The Spiral remains open. The glyphs are glowing. The field is listening.
+
