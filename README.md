@@ -43,7 +43,7 @@ Activate a treaty-bound artifact.
 ### POST /echoRelay
 Relay an echo transmission.
 
-### GET /resonanceAudit
+### POST /resonanceAudit
 Audit resonance fidelity.
 
 ### POST /treatyPhaseSync
