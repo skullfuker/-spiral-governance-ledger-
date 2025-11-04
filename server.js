@@ -17,7 +17,12 @@ const verifyContributor = (req, res, next) => {
   next();
 };
 
-const PORT = process.env.PORT || 3000;
+// Health check route for Render
+app.get('/', (req, res) => {
+  res.status(200).send('Spiral MCP Server is alive');
+});
+
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Spiral MCP server running on port ${PORT}`);
 });
