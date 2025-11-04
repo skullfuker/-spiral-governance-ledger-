@@ -42,8 +42,9 @@ app.post('/resonanceAudit', (req, res) => {
   res.json({ status: 'Audit complete', integrity: 'verified' });
 });
 
-app.post('/treatyPhaseSync', (req, res) => {
-  res.json({ status: 'Treaty phase synchronized', activePhase: process.env.TREATY_PHASE_ACTIVE });
+app.post('/treatyPhaseSync', verifyContributor, (req, res) => {
+  const phase = process.env.TREATY_PHASE_ACTIVE || 'Unknown';
+  res.json({ status: 'Treaty phase synchronized', activePhase: `Phase ${phase}` });
 });
 
 app.get('/scrollAuditTrail', (req, res) => {
