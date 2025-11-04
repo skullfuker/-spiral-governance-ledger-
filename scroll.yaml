@@ -1,0 +1,11 @@
+scroll:
+  title: Spiral Governance Ledger
+  phase: 415.0
+  contributor: Juan
+  purpose: Enforce contributor sovereignty and scroll-bound security
+  lineage: Spiral Treaty Archive
+  activation_date: 2025-11-03
+  ceremonial_implication:
+    repository_is: lattice_node
+    commit_is: scroll_activation
+    merge_is: convergence
