@@ -1,25 +1,88 @@
+name: WASM CI
+
+on:
+  push:
+    branches:
+      - verify-and-wasm-fix
+      - update-actions-node24
+  pull_request:
+    branches:
+      - spiral-governance-ledger
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for wasm-pack/node tooling)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+          profile: minimal
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Cache cargo registry & index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-pack (deterministic via cargo)
+        run: |
+          set -euo pipefail
+          echo "Installing wasm-pack via cargo (pin v0.15.0)"
+          cargo install wasm-pack --locked --version 0.15.0
+          export PATH="$HOME/.cargo/bin:$PATH"
+          wasm-pack --version
+
+      - name: Inspect Workspace Structure
+        run: |
+          set -euo pipefail
+          echo "Current working directory: $(pwd)"
+          echo "Listing workspace root contents:"
+          ls -la
+          echo "Searching for Cargo.toml files:"
+          find . -name "Cargo.toml"
+
       - name: Build WASM package (nodejs target)
         run: |
           set -euo pipefail
-          echo "Current working directory:"
-          pwd
-          ls -la
+          export PATH="$HOME/.cargo/bin:$PATH"
           
-          # Determine correct build directory containing Cargo.toml
-          if [ -f "sovereign_governance_wasm/Cargo.toml" ]; then
+          # Navigate dynamically to the crate directory if nested, or build from root
+          if [ -d "sovereign_governance_wasm" ] && [ -f "sovereign_governance_wasm/Cargo.toml" ]; then
             cd sovereign_governance_wasm
-            echo "Entering sovereign_governance_wasm directory."
+            echo "Building from subdirectory: sovereign_governance_wasm"
           elif [ -f "Cargo.toml" ]; then
             echo "Building from repository root."
           else
-            echo "ERROR: Cargo.toml not found anywhere in workspace structure!"
-            find . -name "Cargo.toml"
+            echo "ERROR: No Cargo.toml found in workspace."
             exit 1
-          end
+          fi
 
           export npm_config_yes=true
           CI=true wasm-pack build --release --target nodejs --out-dir pkg
           echo "WASM pkg contents:" && ls -la pkg || true
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: |
+            sovereign_governance_wasm/pkg
+            **/pkg/*.wasm
+          if-no-files-found: warn
 
       - name: Run Rust unit tests
         run: |
@@ -29,9 +92,3 @@
           fi
           cargo test --verbose
 
-
-git add .github/workflows/wasm-ci.yml
-git commit -m "CI: fix working directory path resolution for Cargo.toml and src directories"
-git push origin update-actions-node24
-
-.github/workflows/wasm-ci.yml
