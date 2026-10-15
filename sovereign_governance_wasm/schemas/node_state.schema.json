@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NodeState",
+  "type": "object",
+  "properties": {
+    "node_id": { "type": "string" },
+    "psi_pers": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "lid_hash": { "type": "string" },
+    "is_markov_isolated": { "type": "boolean" },
+    "is_sandboxed": { "type": "boolean" }
+  },
+  "required": ["node_id","psi_pers","lid_hash","is_markov_isolated","is_sandboxed"],
+  "additionalProperties": false
+}

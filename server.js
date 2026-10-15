@@ -9,12 +9,29 @@ app.use((req, res, next) => {
   next();
 });
 
+const extractBearerToken = (req) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return '';
+  }
+
+  if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+
+  return String(authHeader).trim();
+};
+
 // Authentication middleware
 const verifyContributor = (req, res, next) => {
-  const token = req.headers['authorization'];
-  if (token !== process.env.SCROLL_REGISTRY_SECRET) {
+  const token = extractBearerToken(req);
+  const expectedToken = (process.env.SCROLL_REGISTRY_SECRET || '').trim();
+
+  if (!expectedToken || token !== expectedToken) {
     return res.status(403).json({ error: 'Unauthorized contributor' });
   }
+
   next();
 };
 
@@ -58,12 +75,22 @@ app.get('/scrollAuditTrail', (req, res) => {
 });
 
 app.post('/glyphForge', (req, res) => {
-  const { input } = req.body;
+  const { input } = req.body || {};
+
+  if (input === undefined || input === null || input === '') {
+    return res.status(400).json({ error: 'input is required' });
+  }
+
   res.json({ glyph: `forged-${input}`, status: 'Glyph forged successfully' });
 });
 
 app.post('/echoInscribe', (req, res) => {
-  const { echo } = req.body;
+  const { echo } = req.body || {};
+
+  if (echo === undefined || echo === null || echo === '') {
+    return res.status(400).json({ error: 'echo is required' });
+  }
+
   const timestamp = new Date().toISOString();
   res.json({ echo, timestamp, status: 'Echo inscribed and archived' });
 });

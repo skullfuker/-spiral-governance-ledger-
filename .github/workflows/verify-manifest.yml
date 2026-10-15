@@ -1,0 +1,72 @@
+permissions:
+  contents: read
+
+name: WASM CI
+on:
+  push:
+    branches:
+      - verify-and-wasm-fix
+  pull_request:
+    branches:
+      - spiral-governance-ledger
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node (for wasm-pack and JS tooling)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Cache cargo registry & index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-pack (pinned)
+        env:
+          VERSION: "0.15.0"
+        run: |
+          set -euo pipefail
+          echo "Installing wasm-pack v${VERSION}"
+          curl -fsSL "https://github.com/rustwasm/wasm-pack/releases/download/v${VERSION}/wasm-pack-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o wasm-pack.tar.gz
+          tar xzf wasm-pack.tar.gz
+          sudo mv wasm-pack /usr/local/bin/wasm-pack
+          wasm-pack --version
+
+      - name: Build WASM package (nodejs target)
+        run: |
+          set -euo pipefail
+          cd sovereign_governance_wasm
+          wasm-pack build --release --target nodejs --out-dir pkg
+          echo "WASM pkg contents:" && ls -la pkg || true
+
+      - name: Collect WASM artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: sovereign_governance_wasm/pkg
+
+      - name: Run Rust unit tests
+        run: |
+          set -euo pipefail
+          cd sovereign_governance_wasm
+          cargo test --verbose

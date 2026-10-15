@@ -1,0 +1,109 @@
+name: CI — Ledger run & S3 anchor
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  run-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      WORM_VAULT_URI: ${{ secrets.WORM_VAULT_URI || 's3://sovereign-lattice-worm-vault' }}
+      DEBUG_BOTOCORE: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install OS build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential libzstd-dev python3-dev
+
+      - name: Install dependencies (from requirements.txt)
+        run: |
+          set -euo pipefail
+          if [ ! -f requirements.txt ]; then
+            echo "requirements.txt not found in repo root"
+            exit 5
+          fi
+          python -m pip install --upgrade pip setuptools wheel
+          # prefer prebuilt wheels to avoid building C extensions from source
+          pip install --prefer-binary -r requirements.txt
+
+      - name: Configure AWS credentials (access keys)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS credentials
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity --output json
+
+      - name: Print environment and workspace debug info
+        run: |
+          set -euo pipefail
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "Python: $(python --version)"
+          echo "Pip packages:"
+          pip list --format=columns
+          echo "Listing repository root:"
+          ls -la
+          echo "Listing current dir tree (top-level):"
+          for d in ./*; do echo ">>> $d"; ls -la "$d" || true; done
+          echo "Checking for script file(s):"
+          ls -la ./ || true
+          echo "AWS identity (sts):"
+          aws sts get-caller-identity --output json || true
+          echo "Quick check of target S3 bucket (may fail if no permissions):"
+          aws s3 ls ${WORM_VAULT_URI} || true
+
+      - name: Run ledger script (strict + unbuffered)
+        env:
+          # enable boto/botocore debug logging in the Python script when present
+          AWS_REGION: ${{ env.AWS_REGION }}
+          WORM_VAULT_URI: ${{ env.WORM_VAULT_URI }}
+        run: |
+          set -xuo pipefail
+          SCRIPT_PATH="./ledger.py"
+          if [ ! -f "$SCRIPT_PATH" ]; then
+            echo "Error: ledger script not found at $SCRIPT_PATH"
+            ls -la
+            exit 4
+          fi
+          # Enable verbose botocore logs if DEBUG_BOTOCORE is set in the job env
+          if [ "${DEBUG_BOTOCORE:-}" = '1' ]; then
+            export BOTOCORE_LOG_LEVEL=DEBUG
+          fi
+          python -u "$SCRIPT_PATH"
+
+      - name: Show diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== WORKSPACE LISTING ==="
+          ls -la
+          echo "=== PYTHON DEPENDENCIES ==="
+          pip list --format=columns || true
+          echo "=== AWS STS ==="
+          aws sts get-caller-identity || true
+          echo "=== Sample S3 bucket head attempt ==="
+          aws s3 ls ${WORM_VAULT_URI} || true

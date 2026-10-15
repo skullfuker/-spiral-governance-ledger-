@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SensorTelemetry",
+  "type": "object",
+  "properties": {
+    "phi_measured": { "type": "number" },
+    "ds_internal_dt": { "type": "number" },
+    "planetary_delta": { "type": "number" },
+    "real_r_systemic": { "type": "number" },
+    "real_x_extractive": { "type": "number" },
+    "real_phi_landauer": { "type": "number" }
+  },
+  "required": ["phi_measured","ds_internal_dt","planetary_delta","real_r_systemic","real_x_extractive","real_phi_landauer"],
+  "additionalProperties": false
+}

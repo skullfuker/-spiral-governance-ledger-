@@ -1,0 +1,72 @@
+name: WASM build & tests
+on:
+  push:
+    paths:
+      - 'sovereign_governance_wasm/**'
+  pull_request:
+    paths:
+      - 'sovereign_governance_wasm/**'
+
+jobs:
+  build:
+    name: Build WASM package (nodejs target) and run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node (for wasm-pack and JS tooling)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Cache cargo registry & index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-pack (installer)
+        run: |
+          set -euo pipefail
+          echo "Installing wasm-pack via the official installer script"
+          curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+          wasm-pack --version
+
+      - name: Build WASM package (nodejs target)
+        run: |
+          set -euo pipefail
+          cd sovereign_governance_wasm
+          wasm-pack build --release --target nodejs --out-dir pkg
+          echo "WASM pkg contents:" && ls -la pkg || true
+
+      - name: Compute WASM SHA-256
+        run: |
+          WASM=$(find sovereign_governance_wasm/pkg -name '*.wasm' | head -n1 || true)
+          if [ -z "$WASM" ]; then echo "No .wasm found" && exit 1; fi
+          if command -v sha256sum >/dev/null 2>&1; then sha256sum "$WASM" | awk '{print $1}' > wasm_pkg.sha256; else shasum -a 256 "$WASM" | awk '{print $1}' > wasm_pkg.sha256; fi
+          echo "WASM SHA256: $(cat wasm_pkg.sha256)"
+
+      - name: Collect WASM artifact + checksum
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: |
+            sovereign_governance_wasm/pkg
+            wasm_pkg.sha256
+
+      - name: Run Rust unit tests
+        run: |
+          set -euo pipefail
+          cd sovereign_governance_wasm
+          cargo test --verbose
