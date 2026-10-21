@@ -1,4 +1,9 @@
-git checkout verify-and-wasm-fix
-git add .github/workflows/
-git commit -m "ci: harden WASM build and artifact upload workflows with safe directory guards"
-git push -u origin verify-and-wasm-fix
+- name: Install wasm-pack (pinned)
+  env:
+    VERSION: "0.15.0"
+  run: |
+    set -euo pipefail
+    echo "Installing wasm-pack v${VERSION}"
+    curl -fsSL "https://github.com/rustwasm/wasm-pack/releases/download/v${VERSION}/wasm-pack-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o wasm-pack.tar.gz
+    tar xzf wasm-pack.tar.gz
+    ...
