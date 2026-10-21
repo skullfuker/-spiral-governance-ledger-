@@ -2,6 +2,7 @@ permissions:
   contents: read
 
 name: WASM CI
+
 on:
   push:
     branches:
@@ -13,17 +14,18 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Setup Node (for wasm-pack and JS tooling)
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -40,7 +42,7 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install wasm-pack (pinned)
+      - name: Install wasm-pack
         env:
           VERSION: "0.15.0"
         run: |
@@ -51,19 +53,22 @@ jobs:
           sudo mv wasm-pack /usr/local/bin/wasm-pack
           wasm-pack --version
 
-      - name: Build WASM package (nodejs target)
+      - name: Build WASM package
         run: |
           set -euo pipefail
           cd sovereign_governance_wasm
+          mkdir -p pkg
           wasm-pack build --release --target nodejs --out-dir pkg
-          echo "WASM pkg contents:" && ls -la pkg || true
+          echo "WASM pkg contents:"
+          ls -la pkg || true
 
       - name: Collect WASM artifact
-        if: always()
+        if: ${{ hashFiles('sovereign_governance_wasm/pkg/**') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg
           path: sovereign_governance_wasm/pkg
+          if-no-files-found: ignore
 
       - name: Run Rust unit tests
         run: |
