@@ -46,3 +46,24 @@ Thumbs.db
 *.pem
 credentials.csv
 .aws/
+
+git status --short
+
+rm -rf --ignore-fail-on-non-empty \
+  .env \
+  root \
+  glyphs/placeholder.txt \
+  scrolls/phase-373 \
+  scrolls/phase-374 \
+  scrolls/phase-genesis \
+  iam/s3-worm-policy.json
+
+# Inspect the odd glyphs directory name before deleting it
+find glyphs -maxdepth 1 -print 2>/dev/null
+
+# If a backtick-named directory exists, remove it explicitly
+rm -rf --ignore-fail-on-non-empty "glyphs/\`glyphs"
+
+git status --short
+git add -A
+git commit -m "Remove unused/generated files"
