@@ -1,22 +1,24 @@
-name: CI — Ledger run & S3 anchor
+name: CI v5
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
+      - spiral-governance-ledger
   pull_request:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  run-ledger:
+  test-and-coverage:
+    name: Test + Coverage Gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     env:
-      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-      WORM_VAULT_URI: ${{ vars.WORM_VAULT_URI || 's3://sovereign-lattice-worm-vault' }}
-      DEBUG_BOTOCORE: '1'
+      MIN_COVERAGE_THRESHOLD: "95"
 
     steps:
       - name: Checkout repository
@@ -25,106 +27,59 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
 
-      - name: Cache pip
-        uses: actions/cache@v4
+      - name: Install project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install pytest==8.3.2 pytest-cov==5.0.0
+
+      - name: Run Pytest Suite with Coverage & 95% Threshold Gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== STAGE 1: RUNNING PYTEST VALIDATION & COVERAGE THRESHOLD GATE ==="
+
+          TARGET_FILE=""
+          if [ -d "tests" ] && [ -f "tests/test_worm_policy.py" ]; then
+            TARGET_FILE="tests/test_worm_policy.py"
+          elif [ -f "test_worm_policy.py" ]; then
+            TARGET_FILE="test_worm_policy.py"
+          fi
+
+          if [ -n "$TARGET_FILE" ]; then
+            echo "Executing Pytest on $TARGET_FILE with coverage enforcement (min ${MIN_COVERAGE_THRESHOLD}%)..."
+            pytest "$TARGET_FILE" -v \
+              --cov=. \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          else
+            echo "No worm policy test file found; running direct validation fallback..."
+            if [ -f "test_worm_policy.py" ]; then
+              python -u test_worm_policy.py
+            else
+              echo "No validation script found; failing CI."
+              exit 1
+            fi
+
+            if [ ! -f "coverage.xml" ]; then
+              echo "Coverage XML was not generated during fallback validation; failing workflow."
+              exit 1
+            fi
+          fi
+
+      - name: Upload Coverage XML Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install OS build dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y build-essential libzstd-dev python3-dev
-
-      - name: Install dependencies
-        run: |
-          set -euo pipefail
-          if [ ! -f requirements.txt ]; then
-            echo "requirements.txt not found in repo root"
-            exit 5
-          fi
-          python -m pip install --upgrade pip setuptools wheel
-          pip install --prefer-binary -r requirements.txt
-
-      - name: Configure AWS credentials (OIDC)
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Skip AWS configuration
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME == '' }}
-        run: |
-          echo "AWS_ROLE_TO_ASSUME is not configured; skipping AWS-authenticated steps."
-          echo "This is expected for non-AWS CI runs."
-
-      - name: Verify AWS credentials
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
-        run: |
-          set -euo pipefail
-          aws sts get-caller-identity --output json
-
-      - name: Print environment and workspace debug info
-        run: |
-          set -euo pipefail
-          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-          echo "Python: $(python --version)"
-          echo "Pip packages:"
-          pip list --format=columns
-          echo "Listing repository root:"
-          ls -la
-          echo "AWS identity (sts):"
-          if [ -n "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
-            aws sts get-caller-identity --output json || true
-          else
-            echo "AWS not configured; skipped"
-          fi
-          echo "Quick check of target S3 bucket (may fail if no permissions):"
-          if [ -n "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
-            aws s3 ls "${WORM_VAULT_URI}" || true
-          else
-            echo "AWS not configured; skipped"
-          fi
-
-      - name: Run ledger script (strict + unbuffered)
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          WORM_VAULT_URI: ${{ env.WORM_VAULT_URI }}
-        run: |
-          set -euxo pipefail
-          SCRIPT_PATH="./ledger.py"
-          if [ ! -f "$SCRIPT_PATH" ]; then
-            echo "Error: ledger script not found at $SCRIPT_PATH"
-            ls -la
-            exit 4
-          fi
-          if [ "${DEBUG_BOTOCORE:-}" = '1' ]; then
-            export BOTOCORE_LOG_LEVEL=DEBUG
-          fi
-          python -u "$SCRIPT_PATH"
-
-      - name: Show diagnostics on failure
-        if: failure()
-        run: |
-          echo "=== WORKSPACE LISTING ==="
-          ls -la
-          echo "=== PYTHON DEPENDENCIES ==="
-          pip list --format=columns || true
-          echo "=== AWS STS ==="
-          if [ -n "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
-            aws sts get-caller-identity || true
-          else
-            echo "AWS not configured; skipped"
-          fi
-          echo "=== Sample S3 bucket head attempt ==="
-          if [ -n "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
-            aws s3 ls "${WORM_VAULT_URI}" || true
-          else
-            echo "AWS not configured; skipped"
-          fi
+          name: coverage-report-xml
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
