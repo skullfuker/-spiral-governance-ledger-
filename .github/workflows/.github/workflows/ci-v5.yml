@@ -1,0 +1,70 @@
+name: CI v5
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - spiral-governance-ledger
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-coverage:
+    name: Test + Coverage Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      MIN_COVERAGE_THRESHOLD: "95"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install pytest==8.3.2 pytest-cov==5.0.0
+
+      - name: Run tests with coverage gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== STAGE 1: RUNNING PYTEST VALIDATION & COVERAGE THRESHOLD GATE ==="
+
+          if find . -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+            echo "Python tests found. Running pytest with coverage enforcement."
+            pytest -q \
+              --cov=. \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          else
+            echo "No Python test files found in the repo."
+            echo "Skipping coverage gate because there is no test suite to run."
+            exit 0
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 14
