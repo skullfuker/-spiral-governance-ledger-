@@ -1,34 +1,24 @@
-import pytest
-from pure_structure import PureStructuralLayer
+- name: Run Pytest Suite with Coverage & 95% Threshold Gate
+  run: |
+    set -euo pipefail
+    echo "=== STAGE 1: RUNNING PYTEST VALIDATION & COVERAGE THRESHOLD GATE ==="
 
-def test_net_positive_gate_enforcement():
-    layer = PureStructuralLayer(
-        lattice_zone="ZONE-OMEGA-TEST",
-        worm_vault_uri="s3://test-worm-vault"
-    )
-    agent_did = "did:sos:agent:test_agent_01"
-    layer.register_soulbound_agent(agent_did, valid=True)
-
-    # Test 1: Valid Net-Positive Transition (E > 0)
-    success_receipt = layer.execute_structural_transition(
-        action_id="test_action_01",
-        actor_did=agent_did,
-        community_id="0x0000000000000000000000000000000000000000000000000000000000000001",
-        zk_proof="valid_zk_groth16_proof_string_sample_01",
-        positive_impacts=[3.0],
-        negative_impacts=[1.0]
-    )
-    assert success_receipt["gate_result"] == "ACCEPT"
-    assert success_receipt["computed_impact"]["delta_e"] == 2.0
-
-    # Test 2: Extractive Rejection (E <= 0)
-    rejection_receipt = layer.execute_structural_transition(
-        action_id="test_action_02",
-        actor_did=agent_did,
-        community_id="0x0000000000000000000000000000000000000000000000000000000000000001",
-        zk_proof="valid_zk_groth16_proof_string_sample_02",
-        positive_impacts=[0.5],
-        negative_impacts=[2.0]
-    )
-    assert rejection_receipt["gate_result"] == "REJECT_NET_NON_POSITIVE"
-    assert rejection_receipt["computed_impact"]["delta_e"] == -1.5
+    if [ -d "tests" ] && find tests -maxdepth 1 -type f | grep -q ".py"; then
+      echo "Running tests under tests/"
+      pytest tests -v \
+        --cov=. \
+        --cov-report=term-missing \
+        --cov-report=xml:coverage.xml \
+        --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+    elif [ -f "test_worm_policy.py" ]; then
+      echo "Running fallback test script"
+      pytest test_worm_policy.py -v \
+        --cov=. \
+        --cov-report=term-missing \
+        --cov-report=xml:coverage.xml \
+        --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+    else
+      echo "No Python tests found for the project."
+      echo "Add test_worm_policy.py or add the real repo test files."
+      exit 1
+    fi
