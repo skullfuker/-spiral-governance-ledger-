@@ -4,6 +4,9 @@
   run: |
     set -euo pipefail
     echo "Installing wasm-pack v${VERSION}"
-    curl -fsSL "https://github.com/rustwasm/wasm-pack/releases/download/v${VERSION}/wasm-pack-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o wasm-pack.tar.gz
-    tar xzf wasm-pack.tar.gz
-    ...
+    curl -fsSL \
+      "https://github.com/rustwasm/wasm-pack/releases/download/v${VERSION}/wasm-pack-v${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+      -o wasm-pack.tar.gz
+    tar -xzf wasm-pack.tar.gz
+    sudo install -m 755 "wasm-pack-v${VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+    wasm-pack --version
