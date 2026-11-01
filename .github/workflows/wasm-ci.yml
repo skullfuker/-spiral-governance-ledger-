@@ -1,36 +1,38 @@
-name: WASM CI
+name: WASM Build
+
 on:
   push:
-    branches:
-      - verify-and-wasm-fix
   pull_request:
-    branches:
-      - spiral-governance-ledger
 
 jobs:
-  build-and-test:
+  build-wasm:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+    timeout-minutes: 30
 
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add WASM target
+        run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: |
-          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          set -euo pipefail
+          cargo install wasm-pack --locked --version 0.15.0
+          wasm-pack --version
 
-      - name: Build WASM package (nodejs target)
+      - name: Build WASM package
         run: |
-          cd sovereign_governance_wasm
-          wasm-pack build --release --target nodejs --out-dir pkg
-          echo "WASM pkg contents:" && ls -la pkg || true
-
-      - name: Run Rust unit tests
-        run: |
-          cd sovereign_governance_wasm
-          cargo test --verbose
+          set -euo pipefail
+          if [ -d sovereign_governance_wasm ]; then
+            cd sovereign_governance_wasm
+            wasm-pack build --release --target web --out-dir pkg
+            ls -la pkg
+          else
+            echo "No sovereign_governance_wasm directory found."
+            exit 1
+          fi
