@@ -1,3 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - spiral-governance-ledge
+      - "fix/**"
+      - "security/**"
+  pull_request:
+    branches:
+      - spiral-governance-ledge
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MIN_COVERAGE_THRESHOLD: "95"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pytest==8.3.2 pytest-cov==5.0.0
+
       - name: Run Pytest Suite with Coverage
         shell: bash
         env:
