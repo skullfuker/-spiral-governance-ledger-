@@ -1,46 +1,56 @@
 #!/usr/bin/env python3
-import os
-import sys
+"""Validate a local demo manifest only; this is not an AWS/WORM audit."""
+
+from __future__ import annotations
+
 import argparse
 import json
+import os
+import sys
+from pathlib import Path
 
-def main():
-    parser = argparse.ArgumentParser(description="WORM Vault Audit Script")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
-        choices=["dry-run", "production-check"],
+        choices=("dry-run", "production-check"),
         default="dry-run",
-        help="Validation mode."
+        help="Production verification is intentionally unavailable in this demo implementation.",
     )
     parser.add_argument(
-        "--s3-uri",
-        default=os.getenv("STEWARD_S3_URI"),
-        help="S3 URI for WORM vault audit."
+        "--manifest-path",
+        default=os.environ.get("STEWARD_AUDIT_MANIFEST_PATH", "build/manifests/latest.json"),
     )
-    parser.add_argument(
-        "--kms-key-id",
-        default=os.getenv("AWS_KMS_KEY_ID"),
-        help="KMS Key ID for vault verification."
-    )
-
     args = parser.parse_args()
 
-    print(f"[INFO] Initializing WORM Vault Audit in mode: {args.mode}")
-
     if args.mode == "production-check":
-        if not args.s3_uri or not args.kms_key_id:
-            print("Production validation requires live S3 and KMS parameters.", file=sys.stderr)
-            sys.exit(1)
-        print("[SUCCESS] Live S3 and KMS parameters verified.")
-    else:
-        print("[INFO] Running in dry-run audit mode.")
+        print(
+            "ERROR: live S3 Object Lock/KMS verification is not implemented; refusing to report success.",
+            file=sys.stderr,
+        )
+        return 2
 
-    manifest_path = os.getenv("STEWARD_AUDIT_MANIFEST_PATH", "build/manifests/latest.json")
-    if not os.path.exists(manifest_path):
-        print(f"[ERROR] Manifest not found at {manifest_path}", file=sys.stderr)
-        sys.exit(1)
+    path = Path(args.manifest_path)
+    if not path.is_file():
+        print(f"ERROR: demo manifest not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"ERROR: cannot read valid JSON manifest: {exc}", file=sys.stderr)
+        return 1
 
-    print(f"[SUCCESS] WORM audit completed successfully for manifest: {manifest_path}")
+    if data.get("status") != "DEMO_DRY_RUN_NON_PRODUCTION":
+        print("ERROR: refusing to label a non-demo manifest as locally validated.", file=sys.stderr)
+        return 1
+    if data.get("key_rotation_performed") is not False or data.get("aws_contacted") is not False:
+        print("ERROR: manifest demo markers are missing or inconsistent.", file=sys.stderr)
+        return 1
+
+    print(f"Local demo manifest is valid: {path}. This is NOT an AWS/WORM audit.")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
