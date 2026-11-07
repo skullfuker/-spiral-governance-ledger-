@@ -1,55 +1,65 @@
-name: CI
+import pytest
 
-on:
-  push:
-    branches:
-      - spiral-governance-ledge
-      - 'fix/**'
-      - 'security/**'
-  pull_request:
-    branches:
-      - spiral-governance-ledge
+from lattice_ledger import initialize_lattice_update, validate_chain_integrity
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      MIN_COVERAGE_THRESHOLD: "95"
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+GENESIS = "0" * 64
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            python -m pip install -r requirements.txt
-          fi
-          python -m pip install pytest==8.3.2 pytest-cov==5.0.0
+def test_create_and_validate_linked_blocks():
+    first = initialize_lattice_update({"event": "first"}, GENESIS)
+    second = initialize_lattice_update({"event": "second"}, first["current_hash"])
 
-      - name: Run pytest with coverage
-        shell: bash
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
-          python -m pytest -q --maxfail=1 \
-            --cov=. \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage.xml \
-            --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+    assert len(first["current_hash"]) == 64
+    assert validate_chain_integrity([first, second]) == (True, None)
 
-      - name: Upload coverage artifact
-        if: always() && hashFiles('coverage.xml') != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+
+def test_empty_chain_is_valid():
+    assert validate_chain_integrity([]) == (True, None)
+
+
+def test_invalid_previous_hash_is_rejected():
+    with pytest.raises(ValueError, match="Invalid previous_hash format"):
+        initialize_lattice_update({"event": "bad"}, "not-a-hash")
+
+
+def test_non_serializable_payload_is_rejected():
+    with pytest.raises(ValueError, match="non-JSON-serializable"):
+        initialize_lattice_update({"value": object()}, GENESIS)
+
+
+def test_missing_block_fields_are_rejected():
+    valid, error = validate_chain_integrity([{}])
+
+    assert not valid
+    assert "missing fields" in error
+
+
+def test_tampered_block_fails_hash_validation():
+    block = initialize_lattice_update({"event": "original"}, GENESIS)
+    block["payload"]["event"] = "tampered"
+
+    valid, error = validate_chain_integrity([block])
+
+    assert not valid
+    assert "hash mismatch" in error
+
+
+def test_non_serializable_block_is_rejected():
+    block = initialize_lattice_update({"event": "original"}, GENESIS)
+    block["payload"]["unexpected"] = object()
+
+    valid, error = validate_chain_integrity([block])
+
+    assert not valid
+    assert "non-serializable data" in error
+
+
+def test_broken_linkage_is_rejected():
+    first = initialize_lattice_update({"event": "first"}, GENESIS)
+    second = initialize_lattice_update({"event": "second"}, "1" * 64)
+
+    valid, error = validate_chain_integrity([first, second])
+
+    assert not valid
+    assert "does not link" in error
