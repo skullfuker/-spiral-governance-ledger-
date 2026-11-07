@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 30
     env:
       FORCE_ROTATION: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rotation || false }}
-      AUDIT_MANIFEST_PATH: ${{ vars.STEWARD_AUDIT_MANIFEST_PATH || 'build/manifests/latest.json' }}
+      STEWARD_AUDIT_MANIFEST_PATH: ${{ vars.STEWARD_AUDIT_MANIFEST_PATH || 'build/manifests/latest.json' }}
       STEWARD_WEBHOOK_PLATFORM: ${{ vars.STEWARD_WEBHOOK_PLATFORM || 'discord' }}
       STEWARD_NODE_ID: ${{ vars.STEWARD_NODE_ID }}
       STEWARD_KEY_ID: ${{ vars.STEWARD_KEY_ID }}
@@ -47,7 +47,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/SovereignLatticeCIRole
+          role-to-assume: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
           audience: sts.amazonaws.com
 
@@ -77,20 +77,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/rotate_steward_keys.py --force="$FORCE_ROTATION"
+          python scripts/rotate_steward_keys.py --force="$FORCE_ROTATION" --manifest-path "$STEWARD_AUDIT_MANIFEST_PATH"
 
       - name: Verify WORM vault and digest integrity
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/audit_worm_vault.py --verify-latest
+          python scripts/audit_worm_vault.py --verify-latest --manifest-path "$STEWARD_AUDIT_MANIFEST_PATH"
 
       - name: Confirm manifest exists
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f "$AUDIT_MANIFEST_PATH" ]]; then
-            echo "Audit manifest not found at: $AUDIT_MANIFEST_PATH" >&2
+          if [[ ! -f "$STEWARD_AUDIT_MANIFEST_PATH" ]]; then
+            echo "Audit manifest not found at: $STEWARD_AUDIT_MANIFEST_PATH" >&2
             exit 1
           fi
 
