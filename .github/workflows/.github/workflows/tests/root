@@ -1,10 +1,12 @@
-      - name: Run Pytest Suite with Coverage
-        env:
-          PYTHONPATH: .
-        run: |
-          set -euo pipefail
-          pytest .github/workflows/.github/workflows/tests/test_lattice.py -v \
-            --cov=lattice_ledger \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage.xml \
-            --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+import runpy
+
+import lattice_ledger
+
+
+def test_script_entrypoint(capsys):
+    runpy.run_path(lattice_ledger.__file__, run_name="__main__")
+
+    output = capsys.readouterr().out
+    assert "New Update Block Initialized Successfully:" in output
+    assert "Second Update Block Initialized Successfully:" in output
+    assert "Chain Integrity Check: ✓ VALID" in output
