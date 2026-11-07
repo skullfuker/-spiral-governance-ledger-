@@ -1,0 +1,1 @@
+rm -f .github/workflows/.github/workflows/tests/test_lattice.py
