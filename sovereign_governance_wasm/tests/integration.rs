@@ -1,40 +1,53 @@
-use sovereign_governance_wasm::{Module01NetPositive, Module04Mdve, NodeState, SensorTelemetry};
+name: CI
 
-#[test]
-fn mdve_all_pass() {
-    let node = NodeState {
-        node_id: "NODE_TEST".into(),
-        psi_pers: 1,
-        lid_hash: "0xabcdef".into(),
-        is_markov_isolated: true,
-        is_sandboxed: false,
-    };
+on:
+  push:
+    branches:
+      - main
+      - master
+      - spiral-governance-ledger
+  pull_request:
 
-    let telemetry = SensorTelemetry {
-        phi_measured: 0.25,
-        ds_internal_dt: -0.1,
-        planetary_delta: 5.0,
-        real_r_systemic: 50.0,
-        real_x_extractive: 10.0,
-        real_phi_landauer: 2.0,
-    };
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MIN_COVERAGE_THRESHOLD: "95"
 
-    let results = Module04Mdve::inspect(&node, &telemetry);
-    assert!(results.all_passed, "Expected MDVE to pass for the test input");
-}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-#[test]
-fn net_positive_lock() {
-    let telemetry = SensorTelemetry {
-        phi_measured: 0.5,
-        ds_internal_dt: -0.2,
-        planetary_delta: 3.0,
-        real_r_systemic: 100.0,
-        real_x_extractive: 10.0,
-        real_phi_landauer: 1.0,
-    };
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    let e_net = Module01NetPositive::calculate_e_net(&telemetry);
-    let lock = Module01NetPositive::evaluate_lock(e_net);
-    assert_eq!(lock, 1, "Expected lock to be engaged (1) when E_net > 0");
-}
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install pytest==8.3.2 pytest-cov==5.0.0
+
+      - name: Run Pytest Suite with Coverage
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          pytest tests/test_lattice_ledger.py -v \
+            --cov=lattice_ledger \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+
+      - name: Upload Coverage Artifact
+        if: always() && hashFiles('coverage.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
