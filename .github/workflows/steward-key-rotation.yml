@@ -1,0 +1,77 @@
+name: Steward Key Rotation & Audit
+
+on:
+  schedule:
+    # Every Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    inputs:
+      force_rotation:
+        description: Force key rotation regardless of age
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  rotate-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_ROTATION: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rotation || false }}
+      AUDIT_MANIFEST_PATH: ${{ vars.STEWARD_AUDIT_MANIFEST_PATH || 'audit-manifest.json' }}
+      STEWARD_WEBHOOK_PLATFORM: ${{ vars.STEWARD_WEBHOOK_PLATFORM || 'discord' }}
+      STEWARD_NODE_ID: ${{ vars.STEWARD_NODE_ID }}
+      STEWARD_KEY_ID: ${{ vars.STEWARD_KEY_ID }}
+      STEWARD_STATUS: ROTATION_SUCCESS
+      STEWARD_WEBHOOK_URL: ${{ secrets.STEWARD_WEBHOOK_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify rotation/audit prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in scripts/rotate_steward_keys.py scripts/audit_worm_vault.py scripts/steward_webhook_notifier.py; do
+            if [[ ! -f "$file" ]]; then
+              echo "Required script is missing: $file" >&2
+              exit 1
+            fi
+          done
+          if [[ -z "$STEWARD_WEBHOOK_URL" ]]; then
+            echo "Configure the STEWARD_WEBHOOK_URL Actions secret before running this workflow." >&2
+            exit 1
+          fi
+          if [[ -z "$STEWARD_NODE_ID" || -z "$STEWARD_KEY_ID" ]]; then
+            echo "Configure STEWARD_NODE_ID and STEWARD_KEY_ID repository variables." >&2
+            exit 1
+          fi
+
+      - name: Rotate Steward keys
+        run: python scripts/rotate_steward_keys.py --force="$FORCE_ROTATION"
+
+      - name: Audit WORM vault and manifest
+        run: python scripts/audit_worm_vault.py --verify-latest
+
+      - name: Verify audit manifest exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$AUDIT_MANIFEST_PATH" ]]; then
+            echo "Audit script did not create the configured manifest: $AUDIT_MANIFEST_PATH" >&2
+            echo "Set STEWARD_AUDIT_MANIFEST_PATH to the path produced by the audit script." >&2
+            exit 1
+          fi
+
+      - name: Notify Steward network
+        if: success()
+        run: python scripts/steward_webhook_notifier.py
