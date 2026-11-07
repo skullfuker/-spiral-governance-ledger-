@@ -1,0 +1,61 @@
+name: Steward Key Rotation & Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_rotation:
+        description: "Force rotation of Steward keys regardless of age"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rotate-and-audit:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_ROTATION: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rotation || false }}
+      STEWARD_AUDIT_MANIFEST_PATH: ${{ vars.STEWARD_AUDIT_MANIFEST_PATH || 'build/manifests/latest.json' }}
+      STEWARD_WEBHOOK_PLATFORM: ${{ vars.STEWARD_WEBHOOK_PLATFORM || 'discord' }}
+      STEWARD_NODE_ID: ${{ vars.STEWARD_NODE_ID }}
+      STEWARD_KEY_ID: ${{ vars.STEWARD_KEY_ID }}
+      STEWARD_STATUS: DEMO_DRY_RUN_NON_PRODUCTION
+      STEWARD_WEBHOOK_URL: ${{ secrets.STEWARD_WEBHOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install boto3 botocore pytest
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+
+      - name: Guardrails
+        run: |
+          test -n "${STEWARD_NODE_ID:-}" || { echo "Missing STEWARD_NODE_ID"; exit 1; }
+          test -n "${STEWARD_KEY_ID:-}" || { echo "Missing STEWARD_KEY_ID"; exit 1; }
+          test -n "${AWS_ROLE_ARN:-}" || { echo "Missing AWS_ROLE_ARN"; exit 1; }
+
+      - name: Execute Key Rotation (Dry Run / Check)
+        run: |
+          python scripts/rotate_steward_keys.py --mode dry-run
+
+      - name: Execute WORM Vault Audit
+        run: |
+          python scripts/audit_worm_vault.py --mode dry-run
