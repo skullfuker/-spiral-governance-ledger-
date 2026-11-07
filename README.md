@@ -1,23 +1,28 @@
-# Sovereign Lattice (Coil ID: 77-AE-VIGILANCE)
+# Spiral Governance Ledger
 
-> **CRITICAL SECURITY NOTICE**: This repository is currently in a **NON-PRODUCTION / DEMO DRY-RUN STATE**. 
-> - The automated key rotation workflow is strictly manual-only (`workflow_dispatch`) and must not be run against production environments until verified AWS OIDC roles and production-checked scripts are fully deployed.
-> - **Never commit secrets, `.env` files, or private keys.**
+> **Security status: NOT PRODUCTION-READY for key rotation or AWS vault operations.** Do not use the key rotation workflow against production.
 
-## Architecture Overview
+This repository contains governance documentation and local/demo tooling. The scripts and workflow do not perform real key rotation or verify AWS KMS or S3 Object Lock state. A successful demo run is not evidence of production validation.
 
-The Sovereign Lattice is a non-extractive, non-profit governance system designed for stewardship, survivor-led accountability, and the correction of structural systemic betrayal.
+For the repository's governance and architecture material, see [`SOVEREIGN_GOVERNANCE_README.md`](SOVEREIGN_GOVERNANCE_README.md).
 
-## Security & Remediation Guidelines
+## Local demo checks
 
-1. **No Production Execution**: Workflows run strictly in dry-run or demo mode unless explicit `production-check` environmental variables and verified OIDC roles are configured.
-2. **Secret Hygiene**: Tracked secret files have been purged from git history. Always use local environment variables or GitHub Secrets.
-3. **Fail-Closed Scripts**: Rotation and audit scripts enforce strict validation checks and will fail closed if required parameters are missing.
-
-## Local Setup & Testing
+Use Python 3.11 or newer. These commands create and validate a local demo manifest only:
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m pytest test/ -v
+python scripts/rotate_steward_keys.py --mode dry-run
+python scripts/audit_worm_vault.py --mode dry-run
+```
+
+The `production-check` mode intentionally exits with an error. Supplying AWS environment variables does not turn these demo scripts into production implementations.
+
+## Secret handling
+
+- Never commit `.env` files, credentials, private keys, or certificates.
+- `.gitignore` prevents many new untracked secret files from being added, but it does not untrack files already committed or remove past versions from Git history.
+- The repository previously tracked `.env`. Rotate any real credentials that may have appeared there, remove the file from tracking with `git rm --cached .env`, and coordinate a separate history rewrite before claiming history is clean.
+
+## Production prerequisites (not yet satisfied)
+
+Before any production use, independently design, review, test, and approve actual AWS key lifecycle operations, least-privilege IAM/OIDC trust, S3 Object Lock verification, KMS key-state verification, audit artifact integrity, and operational recovery procedures. Do not add a production trigger until those controls are implemented and reviewed.

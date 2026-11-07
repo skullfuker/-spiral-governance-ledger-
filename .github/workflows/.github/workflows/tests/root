@@ -1,69 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sast/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDEs and Editors
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS Artifacts
-.DS_Store
-Thumbs.db
-
-# AWS credentials / local state
-*.pem
-credentials.csv
-.aws/
-
-git status --short
-
-rm -rf --ignore-fail-on-non-empty \
-  .env \
-  root \
-  glyphs/placeholder.txt \
-  scrolls/phase-373 \
-  scrolls/phase-374 \
-  scrolls/phase-genesis \
-  iam/s3-worm-policy.json
-
-# Inspect the odd glyphs directory name before deleting it
-find glyphs -maxdepth 1 -print 2>/dev/null
-
-# If a backtick-named directory exists, remove it explicitly
-rm -rf --ignore-fail-on-non-empty "glyphs/\`glyphs"
-
-git status --short
-git add -A
-git commit -m "Remove unused/generated files"
+      - name: Run Pytest Suite with Coverage
+        env:
+          PYTHONPATH: .
+        run: |
+          set -euo pipefail
+          pytest .github/workflows/.github/workflows/tests/test_lattice.py -v \
+            --cov=lattice_ledger \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
