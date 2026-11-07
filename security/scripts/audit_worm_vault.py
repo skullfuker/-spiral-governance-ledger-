@@ -43,4 +43,4 @@ def main():
     print(f"[SUCCESS] WORM audit completed successfully for manifest: {manifest_path}")
 
 if __name__ == "__main__":
-    main()
+    main() 
