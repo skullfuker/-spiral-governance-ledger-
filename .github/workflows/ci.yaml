@@ -10,6 +10,9 @@ on:
     branches:
       - spiral-governance-ledge
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -26,13 +29,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install test dependencies
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pytest==8.3.2 pytest-cov==5.0.0
 
-      - name: Run Pytest Suite with Coverage
+      - name: Run lattice ledger tests with coverage
         shell: bash
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -43,3 +46,10 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+
+      - name: Upload coverage artifact
+        if: always() && hashFiles('coverage.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
