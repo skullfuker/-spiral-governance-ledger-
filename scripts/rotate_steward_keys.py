@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Rotate Steward keys and write an audit manifest for each rotation event."""
+"""Generate a local audit manifest for steering/rotation validation.
+
+This repository contains a local/demo implementation. It is intentionally conservative:
+- it does not perform real AWS KMS or S3 Object Lock operations
+- it should not be used in production until replaced by reviewed AWS logic
+"""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -24,10 +30,10 @@ def current_utc_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def ensure_manifest_directory() -> Path:
-    manifest_dir = Path("build/manifests")
-    manifest_dir.mkdir(parents=True, exist_ok=True)
-    return manifest_dir
+def ensure_manifest_directory(manifest_path: str) -> Path:
+    manifest_file = Path(manifest_path)
+    manifest_file.parent.mkdir(parents=True, exist_ok=True)
+    return manifest_file.parent
 
 
 def generate_manifest(node_id: str, key_id: str, event_type: str, hash_value: str, forced: bool) -> dict:
@@ -44,8 +50,6 @@ def generate_manifest(node_id: str, key_id: str, event_type: str, hash_value: st
 
 
 def build_digest(payload: dict) -> str:
-    import hashlib
-
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha3_256(encoded).hexdigest()
 
@@ -58,20 +62,25 @@ def default_key_id() -> str:
     return os.environ.get("STEWARD_KEY_ID", "steward-key-default")
 
 
+def default_manifest_path() -> str:
+    return os.environ.get("STEWARD_AUDIT_MANIFEST_PATH", "build/manifests/latest.json")
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Rotate Steward keys and emit a signed manifest")
+    parser = argparse.ArgumentParser(description="Generate a guided local rotation manifest")
     parser.add_argument("--force", default="false", help="Force rotation despite age checks")
     parser.add_argument("--node-id", default=default_node_id(), help="Public node identifier")
     parser.add_argument("--key-id", default=default_key_id(), help="Public key identifier")
     parser.add_argument("--test", action="store_true", help="Run a local validation without changing production state")
+    parser.add_argument("--manifest-path", default=default_manifest_path(), help="Output path for the generated manifest")
     args = parser.parse_args()
 
     forced = parse_bool(args.force)
     node_id = args.node_id
     key_id = args.key_id
+    manifest_path = args.manifest_path
 
-    manifest_dir = ensure_manifest_directory()
-    manifest_path = manifest_dir / f"key_rotation_{node_id}.json"
+    ensure_manifest_directory(manifest_path)
 
     if args.test:
         payload = {
@@ -84,15 +93,14 @@ def main() -> int:
             "sha3_256": "test-digest-not-produced",
             "version": "1.0",
         }
-        manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        Path(manifest_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         print(f"Test manifest written to {manifest_path}")
         return 0
 
-    # Simulated 90-day rotation policy for local and CI use.
     event_type = "rotation"
     payload = generate_manifest(node_id, key_id, event_type, "pending", forced)
     payload["sha3_256"] = build_digest(payload)
-    manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    Path(manifest_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
     print(f"Rotation manifest written to {manifest_path}")
     print(f"SHA3-256: {payload['sha3_256']}")

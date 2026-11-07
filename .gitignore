@@ -1,15 +1,23 @@
-node_modules/
-package-lock.json
+# Python project dependencies
+
+# This repo intentionally avoids committing any real secrets.
+# Keep a local `.env` or environment variables for runtime configuration.
+
 .env
 .env.*
+.envrc
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+build/
+coverage/
+.pytest_cache/
+.DS_Store
 *.pem
 *.key
 *.crt
 *.p12
-coverage/
-.pytest_cache/
-.DS_Store
-__pycache__/
-*.pyc
-build/
-*.log
+node_modules/
+package-lock.json
