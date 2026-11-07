@@ -4,8 +4,15 @@
 *.key
 *.crt
 *.p12
-build/
 secrets.json
+build/
 .venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+coverage/
+node_modules/
+package-lock.json
+.DS_Store
+*.log

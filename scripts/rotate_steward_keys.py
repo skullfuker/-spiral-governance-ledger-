@@ -1,56 +1,48 @@
 #!/usr/bin/env python3
-import os
-import sys
+"""Local demo manifest generator; it does not rotate keys or call AWS."""
+
+from __future__ import annotations
+
 import argparse
 import json
+import os
+import sys
+from pathlib import Path
 
-def main():
-    parser = argparse.ArgumentParser(description="Steward Key Rotation Script")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
-        choices=["dry-run", "production-check"],
+        choices=("dry-run", "production-check"),
         default="dry-run",
-        help="Only production-check is allowed for live AWS validation."
+        help="Production checks are intentionally unavailable in this demo implementation.",
     )
-    parser.add_argument(
-        "--force",
-        type=str,
-        default="false",
-        help="Force rotation override."
-    )
-
+    parser.add_argument("--force", default="false", help="Accepted for compatibility; no key action occurs.")
     args = parser.parse_args()
 
-    print(f"[INFO] Initializing Steward Key Rotation in mode: {args.mode}")
-
     if args.mode == "production-check":
-        required = [
-            "AWS_REGION",
-            "AWS_KMS_KEY_ID",
-            "AWS_S3_BUCKET",
-            "AWS_ROLE_ARN",
-        ]
-        missing = [name for name in required if not os.environ.get(name)]
-        if missing:
-            print(f"[ERROR] Missing required AWS values for production-check: {missing}", file=sys.stderr)
-            sys.exit(1)
-        print("[SUCCESS] Production environment variables verified.")
-    else:
-        print("[INFO] Running in dry-run mode. No production keys modified.")
+        print(
+            "ERROR: production key rotation is not implemented; refusing to report success.",
+            file=sys.stderr,
+        )
+        return 2
 
-    os.makedirs("build/manifests", exist_ok=True)
-    manifest_path = os.getenv("STEWARD_AUDIT_MANIFEST_PATH", "build/manifests/latest.json")
-    
+    manifest_path = Path(
+        os.environ.get("STEWARD_AUDIT_MANIFEST_PATH", "build/manifests/latest.json")
+    )
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "status": "DEMO_DRY_RUN_NON_PRODUCTION" if args.mode != "production-check" else "PRODUCTION_VERIFIED",
-        "mode": args.mode,
-        "force": args.force
+        "status": "DEMO_DRY_RUN_NON_PRODUCTION",
+        "mode": "dry-run",
+        "key_rotation_performed": False,
+        "aws_contacted": False,
+        "force_requested": args.force.strip().lower() in {"1", "true", "yes", "on"},
     }
-    
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=2)
-    
-    print(f"[SUCCESS] Manifest written to {manifest_path}")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    print(f"Demo manifest written to {manifest_path}; no key operation was performed.")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
