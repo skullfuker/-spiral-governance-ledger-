@@ -1,43 +1,54 @@
-name: CI
+name: Sovereign Lattice CI
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - spiral-governance-ledger
+    branches: [ "spiral-governance-ledge", "main" ]
   pull_request:
+    branches: [ "spiral-governance-ledge", "main" ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    env:
+      MIN_COVERAGE_THRESHOLD: 95
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            python -m pip install -r requirements.txt
-          fi
-          python -m pip install pytest
+          pip install pytest pytest-cov boto3 botocore
 
-      - name: Run tests
+      - name: Run Pytest Suite with Coverage
+        shell: bash
+        env:
+          PYTHONPATH: .github/workflows/.github/workflows
         run: |
           set -euo pipefail
-          if [ -d tests ]; then
-            pytest -q
-          elif ls test_*.py >/dev/null 2>&1; then
-            pytest -q
+          if [ -f ".github/workflows/.github/workflows/tests/test_lattice.py" ]; then
+            pytest .github/workflows/.github/workflows/tests/test_lattice.py -v \
+              --cov=pure_structure \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          elif [ -f "test/test_lattice.py" ]; then
+            pytest test/test_lattice.py -v \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
           else
-            echo "No Python tests found; skipping pytest."
+            echo "No validation test script found."
+            exit 1
           fi
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        if: always() && hashFiles('coverage.xml') != ''
+        with:
+          name: coverage-report
+          path: coverage.xml
