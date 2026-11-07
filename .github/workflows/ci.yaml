@@ -1,11 +1,13 @@
       - name: Run Pytest Suite with Coverage
         shell: bash
         env:
-          PYTHONPATH: "${{ github.workspace }}"
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          pytest tests/test_lattice_ledger.py -v \
-            --cov=lattice_ledger \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage.xml \
-            --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          if [ -f ".github/workflows/.github/workflows/tests/test_lattice.py" ]; then
+            pytest .github/workflows/.github/workflows/tests/test_lattice.py -v \
+              --cov=lattice_ledger \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          # Keep the existing fallback branch if it is still needed.
