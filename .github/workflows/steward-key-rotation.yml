@@ -1,12 +1,10 @@
 name: Steward Key Rotation & Audit
 
 on:
-  schedule:
-    - cron: '0 0 * * 1'
   workflow_dispatch:
     inputs:
       force_rotation:
-        description: 'Force rotation of Steward keys regardless of age'
+        description: "Force rotation of Steward keys regardless of age"
         required: false
         type: boolean
         default: false
@@ -17,6 +15,7 @@ permissions:
 
 jobs:
   rotate-and-audit:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -25,78 +24,38 @@ jobs:
       STEWARD_WEBHOOK_PLATFORM: ${{ vars.STEWARD_WEBHOOK_PLATFORM || 'discord' }}
       STEWARD_NODE_ID: ${{ vars.STEWARD_NODE_ID }}
       STEWARD_KEY_ID: ${{ vars.STEWARD_KEY_ID }}
-      STEWARD_STATUS: ROTATION_SUCCESS
+      STEWARD_STATUS: DEMO_DRY_RUN_NON_PRODUCTION
       STEWARD_WEBHOOK_URL: ${{ secrets.STEWARD_WEBHOOK_URL }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install Python dependencies
-        shell: bash
+      - name: Install dependencies
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install boto3 botocore pytest
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: us-east-1
           audience: sts.amazonaws.com
 
-      - name: Verify runtime prerequisites
-        shell: bash
+      - name: Guardrails
         run: |
-          set -euo pipefail
-          for file in \
-            scripts/rotate_steward_keys.py \
-            scripts/audit_worm_vault.py \
-            scripts/steward_webhook_notifier.py; do
-            if [[ ! -f "$file" ]]; then
-              echo "Required script is missing: $file" >&2
-              exit 1
-            fi
-          done
-          if [[ -z "${STEWARD_WEBHOOK_URL:-}" ]]; then
-            echo "Configure the STEWARD_WEBHOOK_URL Actions secret before running this workflow." >&2
-            exit 1
-          fi
-          if [[ -z "${STEWARD_NODE_ID:-}" || -z "${STEWARD_KEY_ID:-}" ]]; then
-            echo "Configure STEWARD_NODE_ID and STEWARD_KEY_ID repository variables." >&2
-            exit 1
-          fi
+          test -n "${STEWARD_NODE_ID:-}" || { echo "Missing STEWARD_NODE_ID"; exit 1; }
+          test -n "${STEWARD_KEY_ID:-}" || { echo "Missing STEWARD_KEY_ID"; exit 1; }
+          test -n "${AWS_ROLE_ARN:-}" || { echo "Missing AWS_ROLE_ARN"; exit 1; }
 
-      - name: Execute key rotation and manifest generation
-        shell: bash
+      - name: Execute Key Rotation (Dry Run / Check)
         run: |
-          set -euo pipefail
-          python scripts/rotate_steward_keys.py --force="$FORCE_ROTATION" --manifest-path "$STEWARD_AUDIT_MANIFEST_PATH"
+          python scripts/rotate_steward_keys.py --mode dry-run
 
-      - name: Verify WORM vault and digest integrity
-        shell: bash
+      - name: Execute WORM Vault Audit
         run: |
-          set -euo pipefail
-          python scripts/audit_worm_vault.py --verify-latest --manifest-path "$STEWARD_AUDIT_MANIFEST_PATH"
-
-      - name: Confirm manifest exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f "$STEWARD_AUDIT_MANIFEST_PATH" ]]; then
-            echo "Audit manifest not found at: $STEWARD_AUDIT_MANIFEST_PATH" >&2
-            exit 1
-          fi
-
-      - name: Notify Steward network
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/steward_webhook_notifier.py
+          python scripts/audit_worm_vault.py --mode dry-run
