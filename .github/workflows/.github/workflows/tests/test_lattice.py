@@ -3,10 +3,12 @@ name: CI
 on:
   push:
     branches:
-      - main
-      - master
-      - spiral-governance-ledger
+      - spiral-governance-ledge
+      - 'fix/**'
+      - 'security/**'
   pull_request:
+    branches:
+      - spiral-governance-ledge
 
 jobs:
   test:
@@ -33,19 +35,19 @@ jobs:
           fi
           python -m pip install pytest==8.3.2 pytest-cov==5.0.0
 
-      - name: Run Pytest Suite with Coverage
+      - name: Run pytest with coverage
         shell: bash
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          pytest tests/test_lattice_ledger.py -v \
-            --cov=lattice_ledger \
+          python -m pytest -q --maxfail=1 \
+            --cov=. \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
 
-      - name: Upload Coverage Artifact
+      - name: Upload coverage artifact
         if: always() && hashFiles('coverage.xml') != ''
         uses: actions/upload-artifact@v4
         with:
