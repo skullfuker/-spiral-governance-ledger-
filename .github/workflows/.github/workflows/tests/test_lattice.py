@@ -1,24 +1,15 @@
-- name: Run Pytest Suite with Coverage & 95% Threshold Gate
-  run: |
-    set -euo pipefail
-    echo "=== STAGE 1: RUNNING PYTEST VALIDATION & COVERAGE THRESHOLD GATE ==="
+import pytest
+from lattice_ledger import LatticeLedger  # Adjust to match actual class/functions
 
-    if [ -d "tests" ] && find tests -maxdepth 1 -type f | grep -q ".py"; then
-      echo "Running tests under tests/"
-      pytest tests -v \
-        --cov=. \
-        --cov-report=term-missing \
-        --cov-report=xml:coverage.xml \
-        --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
-    elif [ -f "test_worm_policy.py" ]; then
-      echo "Running fallback test script"
-      pytest test_worm_policy.py -v \
-        --cov=. \
-        --cov-report=term-missing \
-        --cov-report=xml:coverage.xml \
-        --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
-    else
-      echo "No Python tests found for the project."
-      echo "Add test_worm_policy.py or add the real repo test files."
-      exit 1
-    fi
+def test_lattice_ledger_initialization():
+    """Verify core ledger initialization and initial invariant state."""
+    ledger = LatticeLedger(coil_id="77-AE-VIGILANCE")
+    assert ledger.coil_id == "77-AE-VIGILANCE"
+    assert ledger.is_sealed() is False
+
+def test_net_positive_metabolic_gate():
+    """Validate the net-positive metabolic surplus invariant (delta E > 0)."""
+    ledger = LatticeLedger(coil_id="77-AE-VIGILANCE")
+    # Simulate metabolic surplus calculation
+    surplus = ledger.compute_metabolic_surplus(power_inputs=[150], structural_costs=[50])
+    assert surplus > 0
