@@ -20,4 +20,4 @@ The Sovereign Lattice is a non-extractive, non-profit governance system designed
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest test/ -v 
+python -m pytest test/ -v
