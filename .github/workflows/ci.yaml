@@ -1,5 +1,31 @@
-python -m pytest .github/workflows/.github/workflows/tests/test_lattice_ledger.py -v \
-  --cov=lattice_ledger \
-  --cov-report=term-missing \
-  --cov-report=xml:coverage.xml \
-  --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+name: Python CI
+
+on:
+  push:
+    branches: [spiral-governance-ledge]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile ledger module
+        run: python -m compileall -q lattice_ledger.py
+
+      - name: Run ledger tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run ledger example
+        run: python -m lattice_ledger
