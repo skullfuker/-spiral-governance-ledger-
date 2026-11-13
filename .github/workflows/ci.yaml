@@ -1,1 +1,5 @@
- 
+python -m pytest .github/workflows/.github/workflows/tests/test_lattice_ledger.py -v \
+  --cov=lattice_ledger \
+  --cov-report=term-missing \
+  --cov-report=xml:coverage.xml \
+  --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
