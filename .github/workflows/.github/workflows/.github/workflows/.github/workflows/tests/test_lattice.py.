@@ -1,5 +1,0 @@
- repo_root = next(
-    parent for parent in Path(__file__).resolve().parents
-    if (parent / "lattice_ledger.py").is_file()
-)
-module_path = repo_root / "lattice_ledger.py"
