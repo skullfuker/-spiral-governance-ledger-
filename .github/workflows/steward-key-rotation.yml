@@ -1,0 +1,38 @@
+name: Steward Key Rotation & Audit
+
+# Safety gate: this workflow is intentionally manual and local-demo only.
+# It does not configure AWS credentials or perform a production rotation/audit.
+on:
+  workflow_dispatch:
+    inputs:
+      force_rotation:
+        description: "Demo input only; no key rotation is performed"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  local-demo-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STEWARD_AUDIT_MANIFEST_PATH: build/manifests/latest.json
+      STEWARD_STATUS: DEMO_DRY_RUN_NON_PRODUCTION
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run local demo manifest generation
+        run: python scripts/rotate_steward_keys.py --mode dry-run
+
+      - name: Validate local demo manifest only
+        run: python scripts/audit_worm_vault.py --mode dry-run
+
+      - name: State limitation
+        run: echo "Demo validation only; this workflow did not contact AWS, rotate keys, or verify S3 Object Lock/KMS state."

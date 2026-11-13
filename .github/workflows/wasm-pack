@@ -1,22 +1,12 @@
-      - name: Install and Verify wasm-pack
-        run: |
-          set -euo pipefail
-          WASM_PACK_VERSION="0.15.0"
-          
-          if command -v wasm-pack >/dev/null 2>&1; then
-            echo "wasm-pack already installed:"
-            wasm-pack --version
-          else
-            echo "Installing wasm-pack v${WASM_PACK_VERSION}..."
-            cargo install wasm-pack --locked --version "${WASM_PACK_VERSION}"
-          fi
-          
-          wasm-pack --version
-
-      - name: Build WASM Package (NodeJS Target)
-        working-directory: ./sovereign_governance_wasm
-        run: |
-          set -euo pipefail
-          echo "Executing wasm-pack build..."
-          wasm-pack build --release --target nodejs --out-dir pkg
-          ls -la pkg
+- name: Install wasm-pack (pinned)
+  env:
+    VERSION: "0.15.0"
+  run: |
+    set -euo pipefail
+    echo "Installing wasm-pack v${VERSION}"
+    curl -fsSL \
+      "https://github.com/rustwasm/wasm-pack/releases/download/v${VERSION}/wasm-pack-v${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+      -o wasm-pack.tar.gz
+    tar -xzf wasm-pack.tar.gz
+    sudo install -m 755 "wasm-pack-v${VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+    wasm-pack --version

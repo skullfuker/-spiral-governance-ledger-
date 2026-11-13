@@ -1,0 +1,22 @@
+      - name: Run Pytest Suite with Coverage
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          if [ -f ".github/workflows/.github/workflows/tests/test_lattice.py" ]; then
+            pytest .github/workflows/.github/workflows/tests/test_lattice.py -v \
+              --cov=lattice_ledger \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          elif [ -f "test/test_lattice.py" ]; then
+            pytest test/test_lattice.py -v \
+              --cov=lattice_ledger \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage.xml \
+              --cov-fail-under="${MIN_COVERAGE_THRESHOLD}"
+          else
+            echo "No validation test script found."
+            exit 1
+          fi
